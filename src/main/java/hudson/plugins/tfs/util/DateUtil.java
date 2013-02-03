@@ -1,5 +1,7 @@
 package hudson.plugins.tfs.util;
 
+import hudson.model.Environment;
+
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -9,10 +11,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DateUtil {
 
-    private DateUtil() {        
+	// Semicolon separated list of additional datetime patterns used by the system
+    public static final String DATETIME_PATTERNS = "tfs.scm.datetime.patterns";
+
+    private DateUtil() {
     }
 
     public static final ThreadLocal<SimpleDateFormat> TFS_DATETIME_FORMATTER = new ThreadLocal<SimpleDateFormat>() {
@@ -23,11 +30,11 @@ public class DateUtil {
             return dateFormat;
         }
     };
-    
+
     public static Date parseDate(String dateString) throws ParseException {
         return parseDate(dateString, Locale.getDefault(), TimeZone.getDefault());
     }
-    
+
     @SuppressWarnings("deprecation")
     public static Date parseDate(String dateString, Locale locale, TimeZone timezone) throws ParseException {
         Date date = null;
@@ -46,6 +53,10 @@ public class DateUtil {
             DateFormat[] formats = createDateFormatsForLocaleAndTimeZone(locale, timezone);
             return parseWithFormats(dateString, formats);
         }
+
+
+
+
         return date;
     }
 
@@ -71,13 +82,31 @@ public class DateUtil {
     static DateFormat[] createDateFormatsForLocaleAndTimeZone(Locale locale, TimeZone timeZone) {
         List<DateFormat> formats = new ArrayList<DateFormat>();
 
+        addEnvironmentDateTimeFormatsToList(locale, timeZone, formats);
         addDateTimeFormatsToList(locale, timeZone, formats);
         addDateFormatsToList(locale, timeZone, formats);
 
         return formats.toArray(new DateFormat[formats.size()]);
     }
 
-    static void addDateFormatsToList(Locale locale, TimeZone timeZone, List<DateFormat> formats) {
+    static void addEnvironmentDateTimeFormatsToList(Locale locale, TimeZone timeZone, List<DateFormat> formats) {
+    	String environmentPatterns = System.getProperty(DATETIME_PATTERNS);
+    	if(environmentPatterns == null) {
+    		return;
+    	}
+
+    	String[] parsedPatterns = environmentPatterns.split(";");
+
+    	for (int i = 0; i < parsedPatterns.length; i++) {
+			SimpleDateFormat df = new SimpleDateFormat(parsedPatterns[i]);
+			if (timeZone != null) {
+                df.setTimeZone(timeZone);
+            }
+			formats.add(df);
+		}
+	}
+
+	static void addDateFormatsToList(Locale locale, TimeZone timeZone, List<DateFormat> formats) {
         for (int dateStyle = DateFormat.FULL; dateStyle <= DateFormat.SHORT; dateStyle++) {
             DateFormat df = DateFormat.getDateInstance(dateStyle, locale);
             df.setTimeZone(timeZone);
